@@ -65,10 +65,9 @@ async function go(url) {
 
 // 测试
 
-
-async function signIn(browser) {
-
-    const page = await browser.newPage();
+// Action: Sign in to Groq
+// page: page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
+async function signIn(page) {
 
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
@@ -82,7 +81,7 @@ async function signIn(browser) {
     });
 
 
-    prompt("登入? (进入页面并点击登入)>> ")
+    prompt(">> Login? (Enter the page and click Sign-in)>> ")
 
     await page.evaluate(() => {
         Array.from(document.querySelectorAll('button')).find(el => el.textContent === 'sign in to Groq').click();
@@ -91,74 +90,72 @@ async function signIn(browser) {
     await page.screenshot({
         path: 'screenshot.png',
     })
-    
-    prompt("继续? (是)>> ")
-    
+
+    prompt(">> Continue? (Yes): ")
+
     await page.screenshot({
         path: 'screenshot.png',
     })
 
-    let input = prompt("输入email: ").trim();
+    let input = prompt(">> Enter your email: ").trim();
 
 
     await page.focus('#email')
     await page.keyboard.type(input)
 
-    prompt("提交email? (是)>> ")
+    prompt(">> Submit email? (Yes): ")
     await page.keyboard.press('Enter');
 
-    console.log("验证邮件已发送到你的邮箱, 请从邮件中复制链接网址...")
+    console.log(">> Verification email sent. Please copy the verification link sent to your email (Copied, continue): ")
 
     await page.screenshot({
         path: 'screenshot.png',
     })
-    
-    
-    let newURL = prompt("请提供登入网址 (刷新)>> ")
+
+
+    let newURL = prompt(">> Paste the verification link here (continue): ")
 
     page.goto(newURL);
 
     // prompt("继续? (是)>> ")
 
     await page.locator('#chat').wait();
-    
-    
-    if( await signedIn(browser))
-    {
-        console.log("登入成功")
+
+
+    if (await signedIn(browser)) {
+        console.log("Logged in successfully!")
         page.close();
         return true
     }
-    else
-    {
-        console.log("登入失败")
+    else {
+        console.log("Failed to log in")
         page.close();
         return false
     }
-    
+
 
 
 };
 
-// 检查是否已经登入
-async function signedIn(browser) {
-    const page = await browser.newPage();
+// Check if the user is signed in
+async function signedIn(page) {
+
 
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
     await page.locator('#chat').wait();
 
-    let signedIn = await page.evaluate(() => {
+    let loginButtonNotFound = await page.evaluate(() => {
         let out = (Array.from(document.querySelectorAll('button')).find(el => el.textContent === 'sign in to Groq'));
         console.log(out)
-        return out == undefined;
+        return out == undefined; // If login button is not found, then we are signed in
     });
 
-    console.log(signedIn);
+    console.log(loginButtonNotFound);
 
     page.close();
 
-    return signedIn;
+    return loginButtonNotFound;
 
 }
 
@@ -183,21 +180,20 @@ async function queryLLM(page, input, debug = false) {
 
     // const elements = await page.$$('p.text-left');
     // let textContent = await element.evaluate(node => node.textContent) + "\n";
-    
-    const element = await page.$('p.text-left'); // 找到 'p.text-left' 元素
-    const parentElement = await (await element.getProperty('parentNode')).asElement(); // 取得其父元素
-    const innerHTML = await parentElement.evaluate(node => node.innerHTML); // 取得父元素的 innerHTML
 
-    // console.log(innerHTML); // 輸出父元素的 innerHTML
+    const element = await page.$('p.text-left'); // find 'p.text-left' 元素
+    const parentElement = await (await element.getProperty('parentNode')).asElement(); // get parent element
+    const innerHTML = await parentElement.evaluate(node => node.innerHTML); // get innerHTML of parent element
+
 
     textContent = turndownService.turndown(innerHTML)
 
 
-    console.log("response:");
+    console.log("\n## Response:");
     console.log(textContent);
 
     if (debug)
-        prompt("继续 Clear Chat? >> ")
+        prompt("\n>> Continue? (Clear Chat) ")
 
     // clear the chat history so the api is stateless
     await page.evaluate(() => {
@@ -207,6 +203,58 @@ async function queryLLM(page, input, debug = false) {
     return textContent;
 
     // await page.keyboard.type(input)
+}
+
+
+// Get the list of models
+// page: puppeteer's page object
+// return: list of models
+//         sample return:
+// {
+//   object: 'list',
+//   data: [
+//     {
+//       id: 'gemma-7b-it',
+//       object: 'model',
+//       created: 1693721698,
+//       owned_by: 'Google',
+//       active: true,
+//       context_window: 8192
+//     },
+//      .......
+//   ]
+// }
+async function listModels(page) {
+    return new Promise(async (resolve, reject) => {
+        page.on('framenavigated', async () => {
+            try {
+                const result = await page.evaluate(async () => {
+                    const cookie = document.cookie;
+                    const stytchSessionJwt = cookie.match(/stytch_session_jwt=([^;]*)/)[1];
+                    const userPreferences = cookie.match(/user-preferences=([^;]*)/)[1];
+                    const org = JSON.parse(userPreferences)['current-org'];
+
+                    const response = await fetch('https://api.groq.com/openai/v1/models', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer ' + stytchSessionJwt,
+                            'Content-Type': 'application/json',
+                            'Groq-Organization': org
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    return await response.json();
+                });
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
 }
 
 
@@ -222,36 +270,38 @@ async function cli() {
 
     // await signIn(browser);
 
-    let signedStatus = await signedIn(browser);
+    let signedStatus = await signedIn(await browser.newPage());
 
     console.log("Signed In? : " + signedStatus);
 
-    
-    if(!signedStatus) {
-        prompt("没登入? 现在登入! >> ")
-        let success = await signIn(browser);
-        if(!success) {
-            console.log("登入失败, 退出程序")
+
+    if (!signedStatus) {
+        prompt("Not logged in? Log in now! >> ")
+        let success = await signIn(await browser.newPage());
+        if (!success) {
+            console.log("Fail to log in, exiting...")
             return;
         }
     }
 
-    // 登入完了， 开始爬取数据
+    // Login successful, continue to query LLM
 
     const page = await browser.newPage();
     page.goto('https://groq.com/');
 
+    console.log(await listModels(page));
+
 
     while (true) {
-        prompt("继续? >> ")
-        await queryLLM(page, prompt("输入查询内容: "), debug);
+        prompt(">> Continue? ")
+        await queryLLM(page, prompt("Enter your prompt: "), debug);
     }
 
     prompt("继续? >> ")
 
     await browser.close();
     console.log("结束了")
-    
+
     return;
 }
 
@@ -282,7 +332,7 @@ async function startBrowser() {
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-blink-features=AutomationControlled',
-          ],
+        ],
 
     });
 

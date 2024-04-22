@@ -11,7 +11,7 @@ Implemented
 To-do
 - Edit System Prompt
 - View/Switch model
-- Implement API server based on groq api / openai api
+- Implement API server based on groq api / openai api / ollama
 - 但我这个要怎么设role啊... 还是要抓包吗... 
 
 
