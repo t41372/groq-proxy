@@ -115,7 +115,7 @@ async function signIn(page) {
 
     let newURL = prompt(">> Paste the verification link here (continue): ")
 
-    page.goto(newURL);
+    await page.goto(newURL);
 
     // prompt("继续? (是)>> ")
 
@@ -124,12 +124,10 @@ async function signIn(page) {
 
     if (await signedIn(browser)) {
         console.log("Logged in successfully!")
-        page.close();
         return true
     }
     else {
         console.log("Failed to log in")
-        page.close();
         return false
     }
 
@@ -138,8 +136,9 @@ async function signIn(page) {
 };
 
 // Check if the user is signed in
+// page: puppeteer's page object
+// return: true if signed in, false if not signed in
 async function signedIn(page) {
-
 
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
@@ -147,16 +146,12 @@ async function signedIn(page) {
 
     let loginButtonNotFound = await page.evaluate(() => {
         let out = (Array.from(document.querySelectorAll('button')).find(el => el.textContent === 'sign in to Groq'));
-        console.log(out)
+        console.log("Signed In? " + out)
         return out == undefined; // If login button is not found, then we are signed in
     });
 
-    console.log(loginButtonNotFound);
-
-    page.close();
-
+    console.log("Signed In: " + loginButtonNotFound);
     return loginButtonNotFound;
-
 }
 
 // 查询LLM
@@ -224,7 +219,7 @@ async function queryLLM(page, input, debug = false) {
 //      .......
 //   ]
 // }
-async function listModels(page) {
+async function listModelsPuppeteer(page) {
     return new Promise(async (resolve, reject) => {
         page.on('framenavigated', async () => {
             try {
@@ -257,6 +252,77 @@ async function listModels(page) {
     });
 }
 
+// Get the list of models. This function sends a request to the server directly so does not use puppeteer.
+// cookie: cookie object, which contains the cookie information
+//          The cookie object should have the following properties:
+// {
+//   stytch_session_jwt: 'some_jwt_token',
+//   current_org: 'org_some_org',
+//   stytch_session: 'some_session_token'
+// }
+// 
+// return: list of models
+//         sample return:
+// {
+//   object: 'list',
+//   data: [
+//     {
+//       id: 'gemma-7b-it',
+//       object: 'model',
+//       created: 1693721698,
+//       owned_by: 'Google',
+//       active: true,
+//       context_window: 8192
+//     },
+//      .......
+//   ]
+// }
+async function listModels(cookies) {
+
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/models', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + cookies.stytch_session_jwt,
+                'Content-Type': 'application/json',
+                'Groq-Organization': cookies.current_org
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+
+    } catch (error) {
+        console.error(error);
+    }
+
+
+}
+
+async function getCookies(page) {
+    let cookies = await page.cookies();
+
+    let cookieData = {};
+    
+    cookies.forEach(cookie => {
+        if (cookie.name === 'stytch_session_jwt') {
+            cookieData.stytch_session_jwt = cookie.value;
+        } else if (cookie.name === 'user-preferences') {
+            let preferences = JSON.parse(cookie.value);
+            cookieData.current_org = preferences['current-org'];
+        } else if (cookie.name === 'stytch_session') {
+            cookieData.stytch_session = cookie.value;
+        }
+    });
+    
+    // console.log(cookieData);
+    return cookieData;
+
+}
+
 
 
 
@@ -270,12 +336,10 @@ async function cli() {
 
     // await signIn(browser);
 
-    let signedStatus = await signedIn(await browser.newPage());
-
-    console.log("Signed In? : " + signedStatus);
+    let signedInStatus = await signedIn(await browser.newPage());
 
 
-    if (!signedStatus) {
+    if (!signedInStatus) {
         prompt("Not logged in? Log in now! >> ")
         let success = await signIn(await browser.newPage());
         if (!success) {
@@ -284,12 +348,19 @@ async function cli() {
         }
     }
 
+
+
     // Login successful, continue to query LLM
 
     const page = await browser.newPage();
-    page.goto('https://groq.com/');
+    await page.goto('https://groq.com/');
 
-    console.log(await listModels(page));
+    const cookies = await getCookies(page);;
+
+
+    console.log(await listModels(cookies));
+
+
 
 
     while (true) {
