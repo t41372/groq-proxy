@@ -445,7 +445,7 @@ async function cli() {
         console.log(response);
     }
 
-    prompt("Enter anything to exit >> ")
+    prompt("Enter anything to continue >> ")
 
     console.log("Exiting...")
     await browser.close();
@@ -521,7 +521,7 @@ async function startBrowser() {
     // Launch the browser and open a new blank page
     return browser = await puppeteer.launch({
         headless: 'new',
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 
         args: [
             "--user-data-dir=./chromeTemp", // Save browser data (cookies) in a temp folder
