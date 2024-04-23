@@ -2,8 +2,14 @@
 // This should be a minimal version of puppeteer that works
 const puppeteer = require('puppeteer');
 const prompt = require('prompt-sync')()
+
 const TurndownService = require('turndown')
 const turndownService = new TurndownService()
+
+// server config
+const PORT = 9876;
+const http = require('http');
+const url = require('url');
 
 
 
@@ -96,9 +102,9 @@ async function signedIn(page) {
     return loginButtonNotFound;
 }
 
-// 查询LLM
-// page: puppeteer的page对象
-// input: 查询的内容
+// [Deprecated] Query LLM using Puppeteer
+// page: page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
+// input: prompt to query
 async function queryLLM(page, input, debug = false) {
 
     await page.locator('body').wait();
@@ -143,7 +149,7 @@ async function queryLLM(page, input, debug = false) {
 }
 
 
-// Get the list of models
+// [Deprecated] Get the list of models using Puppeteer
 // page: puppeteer's page object
 // return: list of models
 //         sample return:
@@ -272,7 +278,7 @@ async function listModels(cookies) {
 //     "top_p": 0.8,
 //     "stream": true
 // };
-async function chatCompletion(cookies, payload) {
+async function chatCompletion(cookies, payload, sseResponse = null) {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -282,6 +288,16 @@ async function chatCompletion(cookies, payload) {
         },
         body: JSON.stringify(payload)
     });
+
+    console.log({
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + cookies.stytch_session_jwt,
+            'Content-Type': 'application/json',
+            'groq-organization': cookies.current_org
+        },
+        body: JSON.stringify(payload)
+    })
 
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -303,6 +319,9 @@ async function chatCompletion(cookies, payload) {
         let newlineIndex;
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
             const line = buffer.slice(0, newlineIndex);
+            if (sseResponse) {
+                sseResponse.write(line + '\n');
+            }
             buffer = buffer.slice(newlineIndex + 1);
 
             if (line.startsWith('data:')) {
@@ -350,7 +369,7 @@ async function getCookies(page) {
         }
     });
 
-    // console.log(cookieData);
+    console.log(cookieData);
     return cookieData;
 
 }
@@ -393,10 +412,16 @@ async function cli() {
     // console.log(await listModels(cookies));
 
 
+    // createProxyServer(cookies);
+    createServer(cookies).listen(PORT, () => {
+        console.log(`Server listening on port ${PORT}`);
+    });;
 
 
-    while (true) {
-        if(prompt(">> Continue? (Press any key to continue or type exit to exit)") == "exit")
+
+
+    while (false) {
+        if (prompt(">> Continue? (Press any key to continue or type exit to exit)") == "exit")
             break;
         // await queryLLM(page, prompt("Enter your prompt: "), debug);
         let response = await chatCompletion(cookies, {
@@ -420,10 +445,10 @@ async function cli() {
         console.log(response);
     }
 
-    prompt("Continue Exiting? >> ")
+    prompt("Enter anything to exit >> ")
 
-    await browser.close();
     console.log("Exiting...")
+    await browser.close();
 
     return;
 }
@@ -432,6 +457,55 @@ async function cli() {
     await cli();
     return;
 })();
+
+
+
+
+
+// >>>>>>>. Server <<<<<<<
+
+
+function createServer(Cookies) {
+
+    return http.createServer(async (req, res) => {
+        const parsedUrl = url.parse(req.url);
+
+
+        if (req.method === 'GET' && parsedUrl.pathname === `/v1/models`) {
+            const result = await listModels(Cookies);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+        }
+
+        else if (req.method === 'POST' && parsedUrl.pathname === `/v1/chat/completions`) {
+            let payload = '';
+            req.on('data', chunk => {
+                payload += chunk.toString();
+            });
+            req.on('end', async () => {
+                payload = JSON.parse(payload);
+
+                console.log('\n\nParsed Payload:\n');
+                console.log(payload);
+                console.log('\n\n');
+
+                // initiate the server-sent event
+                res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': "no-cache",
+                    'Connection': "keep-alive"
+                });
+                // handle the rest of the response streaming in chatCompletion. res will be closed 
+                const result = await chatCompletion(Cookies, payload, res);
+                res.end();
+            });
+        } else {
+            res.writeHead(404);
+            res.end();
+        }
+    });
+
+}
 
 
 
@@ -461,113 +535,4 @@ async function startBrowser() {
 
 }
 
-
-
-
-
-
-
-
-// ===================== Deprecated =======================
-
-// const cookies = (function (cookieFilePath) {
-//     // file exists and not empty
-//     if ((fs.existsSync(cookieFilePath) &&
-//         fs.statSync(cookieFilePath).isFile()) &&
-//         (fs.readFileSync(cookieFilePath, 'utf8').trim() != '')
-//     ) {
-//         return require(cookieFilePath);
-//     } else {
-//         console.log(">> cookie.json 不存在, 跳过设置cookie...")
-//         return null;
-//     }
-// })('./cookie.json');
-
-
-const maxReloadCount = 2; // 最大重试次数
-const maxRetryCount = 10; // 最大重试次数
-const debug = true; // 是否开启debug模式, debug模式下会打印更多信息
-
-// 启动浏览器的参数
-
-
-
-
-// 前往指定url, 并返回页面的html
-async function go(url) {
-
-
-    const browser = await puppeteer.launch({ headless: false })
-
-    // 控制浏览器打开新标签页面
-    const page = await browser.newPage()
-
-    //设置cookie
-    await setCookie(page, cookies, verbose = debug);
-
-    await page.goto(url, { timeout: 0 })
-
-    prompt("继续? >> ")
-
-    try {
-        // 使用evaluate方法在浏览器中执行传入函数
-        html = await page.evaluate(() => {
-            return document.body.innerHTML; // 直接回传页面的html, 用于测试
-        })
-    } catch (err) {
-        console.error(`\n\n #####! <-- 页面 "${url}" 爬取失敗，正在报错...\n\n`)
-        throw err;
-    }
-    // console,log(data)
-    page.close(); // 关闭页面
-
-    return html;
-}
-
-
-
-
-
-
-// 设置cookie
-// page: puppeteer的page对象
-// cookies: cookie列表
-// verbose: 是否开启debug模式
-async function setCookie(page, cookies, verbose = false) {
-    if (!cookies) {
-        if (verbose) console.log(`\n>> 跳过设置cookie, 因为cookie为空.`);
-        return;
-    }
-
-    if (verbose) console.log("\n>> 正在设置cookie...")
-    for (let cookie of cookies) {
-        // 如果cookie的value 属性为空, 直接跳过
-        if (!cookie.value) {
-            if (verbose) console.log(`>> 跳过cookie: ${JSON.stringify(cookie)} 因为value为空.`);
-            continue;
-        }
-        await page.setCookie(sanitizeCookie(cookie, verbose));
-    }
-}
-
-// 处理cookie, 删除空属性
-// 因为 puppeteer 不能设置空属性的 cookie, 所以要删除空属性
-function sanitizeCookie(cookie, verbose = false) {
-    if (verbose) console.log(`\n>> 正在清理cookie: ${JSON.stringify(cookie)}`);
-    for (const key in cookie) {
-        if (cookie.hasOwnProperty(key)) {
-            if (cookie[key] === null || cookie[key] === undefined || cookie[key] === '') {
-                if (verbose) console.log(`>> 删除cookie中的 '${key}' 属性: 属性值为空.`);
-                // value 属性不能被删除, 否则会导致 puppeteer 报错, 所以这里跳过
-                if (key === 'value' && typeof cookie[key] !== 'string') {
-                    if (verbose) console.log(`>> 跳过 '${key}' 属性, 因为此属性必须存在且为string.`);
-                    continue;
-                }
-                delete cookie[key];
-            }
-        }
-    }
-    if (verbose) console.log(`\n>> cookie清理完成\n`);
-    return cookie;
-}
 
