@@ -17,6 +17,14 @@ const url = require('url');
 // page: page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
 async function signIn(page) {
 
+    await page.setExtraHTTPHeaders({ 
+		'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36', 
+		'upgrade-insecure-requests': '1', 
+		'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8', 
+		'accept-encoding': 'gzip, deflate, br', 
+		'accept-language': 'en-US,en;q=0.9,en;q=0.8' 
+	}); 
+
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
     await page.locator('#chat').wait();
@@ -54,7 +62,7 @@ async function signIn(page) {
     prompt(">> Submit email? (Yes): ")
     await page.keyboard.press('Enter');
 
-    console.log(">> Verification email sent. Please copy the verification link sent to your email (Copied, continue): ")
+    prompt(">> Verification email sent. Please copy the verification link sent to your email (Copied, continue): ")
 
     await page.screenshot({
         path: 'screenshot.png',
@@ -418,8 +426,6 @@ async function cli() {
     });;
 
 
-
-
     while (false) {
         if (prompt(">> Continue? (Press any key to continue or type exit to exit)") == "exit")
             break;
@@ -445,7 +451,7 @@ async function cli() {
         console.log(response);
     }
 
-    prompt("Enter anything to continue >> ")
+    // prompt("Enter anything to continue >> ")
 
     console.log("Exiting...")
     await browser.close();
@@ -517,11 +523,13 @@ function createServer(Cookies) {
 // 启动浏览器
 // 返回一个browser对象
 async function startBrowser() {
+    const { join } = require('path');
 
     // Launch the browser and open a new blank page
     return browser = await puppeteer.launch({
         headless: 'new',
-        // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        cacheDirectory: join(__dirname, '.cache', 'puppeteer'),
+        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 
         args: [
             "--user-data-dir=./chromeTemp", // Save browser data (cookies) in a temp folder
