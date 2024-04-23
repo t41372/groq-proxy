@@ -1,6 +1,7 @@
-## Groq-Proxy: Turn groq webui into free API (OpenAI Compatible). Super Fast Inference for free
+## Groq-Proxy: A reverse engineered API for Groq using NodeJS
+Turn groq webui into free OpenAI Compatible API. Super Fast Inference for free
 
-> :warning all content in this repository are for experimental purposes
+> :warning: all content in this repository are for experimental purposes
 
 
 This program offers free self-hosted API access to groq (which has super fast inference for open source llm like `LLaMA3 70b`, `Mixtral 8x7b`, and some other models) with OpenAI compatible format, so no code changes are needed.
@@ -17,9 +18,11 @@ This program offers free self-hosted API access to groq (which has super fast in
 - View Models (now using http get instead of puppeteer)
 - Implement API server based on groq api / openai api ~~/ ollama, potentially using http-proxy~~
   - Implemented `/v1/chat/completions` and `/v1/models` api, which are OpenAI Compatible. Just have the server running, set your OpenAI Endpoint to `http://localhost:9876`, and you should be good to go.
+  - `/v1/chat/completions` will be streamed back using SSE
 
 
 ### To-do
+- Fix broken puppeteer Sign-in feature
 - Create no puppeteer mode (just provide the cookies or something similar)
 - dockerize this thing
 
@@ -30,14 +33,39 @@ This program offers free self-hosted API access to groq (which has super fast in
 - Clone this repo and open the repo's folder
 - npm install (some puppeteer related settings may need attention)
 - `node index.js` to run this program
-  - You will need to sign into groq. 
-  - The puppeteer headless browser will ask you for your email.
+  - You will need to sign into groq.
+  - Follow the instruction. The puppeteer headless browser will ask you for your email. The screenshot of the headless browser will be generated in the folder so you may see what happens in the browser.
   - After entering your email, a verification email will be sent. Copy the link (don't open it)
   - Paste the link into the program
   - The cookies will be extracted and you are good to go
 
 
 
+## Sample
+terminal code to use the api. Because it uses SSE to stream the data back, you will see a bunch of json appearing on your terminal.
+~~~
+curl --request POST \
+  --url 'http://localhost:9876/v1/chat/completions?=' \
+  -H Accept:text/event-stream
+  --data '{
+    "model": "llama3-70b-8192",
+    "messages": [
+        {
+            "content": "",
+            "role": "system"
+        },
+        {
+            "content": "Hey buddy",
+            "role": "user"
+        }
+    ],
+    "temperature": 0.2,
+    "max_tokens": 2048,
+    "top_p": 0.8,
+    "stream": true
+}
+'
+~~~
 
 
 
