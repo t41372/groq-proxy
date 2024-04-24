@@ -24,6 +24,8 @@ This program offers free self-hosted API access to Groq (which has super fast in
 
 ### To-do
 - remove unnecessary code
+- Fake model name
+  - because groq has a rather different model naming scheme, and that the existing tools may have pre-defined the model name, when using this server, the model name might be incorrect. Add a alias feature to redirect some model name to another. For example, map `gpt-3.5-turbo` -> `llama3-70b-8192`
 - add checks for the validity of cookies for the API
 - Create no puppeteer mode (just provide the cookies or something similar)
 - dockerize this thing
