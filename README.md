@@ -24,6 +24,7 @@ This program offers free self-hosted API access to groq (which has super fast in
 
 ### To-do
 - remove uneccesary code
+- add check for validity of cookies for the api
 - Create no puppeteer mode (just provide the cookies or something similar)
 - dockerize this thing
 
