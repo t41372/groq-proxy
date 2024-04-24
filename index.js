@@ -13,17 +13,21 @@ const url = require('url');
 
 
 
-// Action: Sign in to Groq
-// page: page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
-async function signIn(page) {
 
-    await page.setExtraHTTPHeaders({ 
-		'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36', 
-		'upgrade-insecure-requests': '1', 
-		'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8', 
-		'accept-encoding': 'gzip, deflate, br', 
-		'accept-language': 'en-US,en;q=0.9,en;q=0.8' 
-	}); 
+/** [Deprecated and might not work] Provide interactive terminal prompts to sign into Groq
+ * 
+ * @param {puppeteer.Page} page page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
+ * @returns {Object} - The cookie object containing the cookie information: `{ stytch_session_jwt, current_org, stytch_session }`.
+ */
+async function manualSignIn(page) {
+
+    await page.setExtraHTTPHeaders({
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+        'upgrade-insecure-requests': '1',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'en-US,en;q=0.9,en;q=0.8'
+    });
 
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
@@ -68,51 +72,89 @@ async function signIn(page) {
         path: 'screenshot.png',
     })
 
-
-    let newURL = prompt(">> Paste the verification link here (continue): ")
-
-    await page.goto(newURL);
-
-    // prompt("继续? (是)>> ")
-
-    await page.locator('#chat').wait();
-
-
-    if (await signedIn(browser)) {
-        console.log("Logged in successfully!")
-        return true
-    }
-    else {
-        console.log("Failed to log in")
-        return false
-    }
-
-
+    return await getVerified(page);
 
 };
 
-// Check if the user is signed in
-// page: puppeteer's page object
-// return: true if signed in, false if not signed in
-async function signedIn(page) {
+
+/**
+ * Given the verification link, return cookies.
+ * 
+ * @param {puppeteer.Page} page - The puppeteer's page object.
+ * @param {string} verificationLink - The verification link.
+ * @returns {Object} - The cookie object containing the cookie information: `{ stytch_session_jwt, current_org, stytch_session }`.
+ */
+async function getVerified(page, verificationLink) {
+
+    await page.goto(verificationLink);
+    await page.waitForNavigation()
+
+    // prompt("继续? (是)>> ")
+    await page.locator('#chat').wait()
+    return await getCookiesFromPage(verifyPage);
+}
+
+/** Check if the user is signed in
+ * @param {puppeteer.page} page: puppeteer's page object
+ * @return {boolean} true if signed in, false if not signed in
+*/
+async function getSignedInStatus(page) {
 
     // Navigate the page to a URL
     await page.goto('https://groq.com/');
     await page.locator('#chat').wait();
 
-    let loginButtonNotFound = await page.evaluate(() => {
+    return await page.evaluate(() => {
         let out = (Array.from(document.querySelectorAll('button')).find(el => el.textContent === 'sign in to Groq'));
         console.log("Signed In? " + out)
         return out == undefined; // If login button is not found, then we are signed in
     });
-
-    console.log("Signed In: " + loginButtonNotFound);
-    return loginButtonNotFound;
 }
 
-// [Deprecated] Query LLM using Puppeteer
-// page: page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
-// input: prompt to query
+
+
+
+
+/** Get cookies (format specific to this use case) from the page
+ * @param page: puppeteer's page object
+ * @param url: the url of the page to get cookies from
+ * @return {Object} cookie object, which contains the cookie information.
+ * `{ stytch_session_jwt, current_org, stytch_session }`
+*/
+async function getCookiesFromPage(page, url = 'https://groq.com/') {
+    
+    let cookies = await page.cookies(url);
+
+    let cookieData = {};
+
+    cookies.forEach(cookie => {
+        if (cookie.name === 'stytch_session_jwt') {
+            cookieData.stytch_session_jwt = cookie.value;
+        } else if (cookie.name === 'user-preferences') {
+            let preferences = JSON.parse(cookie.value);
+            cookieData.current_org = preferences['current-org'];
+        } else if (cookie.name === 'stytch_session') {
+            cookieData.stytch_session = cookie.value;
+        }
+    });
+    console.log("\n\nCookies: \n")
+    console.log(cookieData);
+    return cookieData;
+
+}
+
+
+
+
+
+
+/** [Deprecated] Query LLM using Puppeteer
+ * 
+ * @param {puppeteer.Page} page page object of puppeteer browser, you can generate it by browser.newPage() with a browser object
+ * @param {string} input prompt to query
+ * @param {boolean} debug optional, default to false, set to true to pause after each query
+ * @returns 
+ */
 async function queryLLM(page, input, debug = false) {
 
     await page.locator('body').wait();
@@ -157,9 +199,9 @@ async function queryLLM(page, input, debug = false) {
 }
 
 
-// [Deprecated] Get the list of models using Puppeteer
-// page: puppeteer's page object
-// return: list of models
+
+// 
+// return: 
 //         sample return:
 // {
 //   object: 'list',
@@ -175,6 +217,26 @@ async function queryLLM(page, input, debug = false) {
 //      .......
 //   ]
 // }
+
+/** [Deprecated] Get the list of models using Puppeteer
+ * 
+ * @param {puppeteer.Page} page puppeteer's page object 
+ * @returns {Object} list of models. In the following format:
+ * {
+ *   object: 'list',
+ *   data: [
+ *     {
+ *       id: 'gemma-7b-it',
+ *       object: 'model',
+ *       created: 1693721698,
+ *       owned_by: 'Google',
+ *       active: true,
+ *       context_window: 8192
+ *     },
+ *      .......
+ *   ]
+ * }
+ */
 async function listModelsPuppeteer(page) {
     return new Promise(async (resolve, reject) => {
         page.on('framenavigated', async () => {
@@ -208,31 +270,26 @@ async function listModelsPuppeteer(page) {
     });
 }
 
-// Get the list of models. This function sends a request to the server directly so does not use puppeteer.
-// cookie: cookie object, which contains the cookie information
-//          The cookie object should have the following properties:
-// {
-//   stytch_session_jwt: 'some_jwt_token',
-//   current_org: 'org_some_org',
-//   stytch_session: 'some_session_token'
-// }
-// 
-// return: list of models
-//         sample return:
-// {
-//   object: 'list',
-//   data: [
-//     {
-//       id: 'gemma-7b-it',
-//       object: 'model',
-//       created: 1693721698,
-//       owned_by: 'Google',
-//       active: true,
-//       context_window: 8192
-//     },
-//      .......
-//   ]
-// }
+
+/** Get the list of models. This function sends a request to the server directly so does not use puppeteer.
+ * 
+ * @param {*} cookies cookie object. It must contains the following properties: `{ stytch_session_jwt, current_org, stytch_session }`
+ * @returns {Object} list of models. In the following format:
+ * {
+ *   object: 'list',
+ *   data: [
+ *     {
+ *       id: 'gemma-7b-it',
+ *       object: 'model',
+ *       created: 1693721698,
+ *       owned_by: 'Google',
+ *       active: true,
+ *       context_window: 8192
+ *     },
+ *      .......
+ *   ]
+ * }
+ */
 async function listModels(cookies) {
 
     try {
@@ -260,32 +317,33 @@ async function listModels(cookies) {
 
 
 
-// Chat completion
-// cookies: cookie object, which contains the cookie information
-//          The cookie object should have the following properties:
-// {
-//   stytch
-// }
-// payload: payload object, which contains the payload information
-//          The payload object should have the following properties:
-//
-// {
-//     "model": "llama3-8b-8192",
-//     "messages": [
-//         {
-//             "content": "Please provide useless but funny response. Do not be helpful",
-//             "role": "system"
-//         },
-//         {
-//             "content": "Describe the steps involved in the process of photosynthesis.",
-//             "role": "user"
-//         }
-//     ],
-//     "temperature": 0.2,
-//     "max_tokens": 2048,
-//     "top_p": 0.8,
-//     "stream": true
-// };
+
+/** Chat completion by calling the Groq API directly. This function sends a request to the server directly so does not use puppeteer.
+ * 
+ * @param {Object} cookies cookie object. It must contains the following properties: `{ stytch_session_jwt, current_org, stytch_session }`
+ * @param {Object} payload payload object following the OpenAI/Groq API format. See Groq API documentation for more information.
+ * #### Here is an example of the payload object
+ *
+ * {
+ *     "model": "llama3-8b-8192",
+ *     "messages": [
+ *         {
+ *             "content": "Please provide useless but funny response. Do not be helpful",
+ *             "role": "system"
+ *         },
+ *         {
+ *             "content": "Describe the steps involved in the process of photosynthesis.",
+ *             "role": "user"
+ *         }
+ *     ],
+ *     "temperature": 0.2,
+ *     "max_tokens": 2048,
+ *     "top_p": 0.8,
+ *     "stream": true
+ * };
+ * @param {*} sseResponse Optional sseResponse object. If provided, the response will be streamed to the sseResponse object.
+ * @returns {string} The complete text of the chat completion.
+ */
 async function chatCompletion(cookies, payload, sseResponse = null) {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -361,60 +419,64 @@ async function chatCompletion(cookies, payload, sseResponse = null) {
 
 
 
-async function getCookies(page) {
-    let cookies = await page.cookies();
 
-    let cookieData = {};
-
-    cookies.forEach(cookie => {
-        if (cookie.name === 'stytch_session_jwt') {
-            cookieData.stytch_session_jwt = cookie.value;
-        } else if (cookie.name === 'user-preferences') {
-            let preferences = JSON.parse(cookie.value);
-            cookieData.current_org = preferences['current-org'];
-        } else if (cookie.name === 'stytch_session') {
-            cookieData.stytch_session = cookie.value;
-        }
-    });
-
-    console.log(cookieData);
-    return cookieData;
-
-}
 
 
 
 
 //  ===== main
 
+/** Main function of the CLI.
+ * 
+ * @returns 
+ */
 async function cli() {
 
+    const banner = `Welcome to Groq-Proxy (github.com/t41372/groq-proxy)\n
+   ______                       ____                       
+  / ____/________  ____ _      / __ \\_________  _  ____  __
+ / / __/ ___/ __ \\/ __ \`/_____/ /_/ / ___/ __ \\| |/_/ / / /
+/ /_/ / /  / /_/ / /_/ /_____/ ____/ /  / /_/ />  </ /_/ / 
+\\____/_/   \\____/\\__, /     /_/   /_/   \\____/_/|_|\\__, (_)
+                   /_/                            /____/   
+`;
+
+    console.log(banner)
+
     const browser = await startBrowser();
+    const page = await browser.newPage();
+    await page.goto('https://groq.com/');
+    await page.locator('#chat').wait();
+    
 
     // await go("https://groq.com/");
 
     // await signIn(browser);
 
-    let signedInStatus = await signedIn(await browser.newPage());
-
+    console.log("\n\nChecking sign-in status...\n")
+    let signedInStatus = await getSignedInStatus(page);
+    console.log("Signed In: " + signedInStatus + "\n");
+    let cookies = {};
 
     if (!signedInStatus) {
         prompt("Not logged in? Log in now! >> ")
-        let success = await signIn(await browser.newPage());
-        if (!success) {
-            console.log("Fail to log in, exiting...")
-            return;
-        }
+        console.log("Steps: \n1. Go to the Groq website (https://groq.com/)\n2. Click on Sign-in\n3. Enter your email\n4. Copy the verification link (don't open it!)\n5. Paste the verification link here\n\n")
+        cookies = await getVerified(page, prompt("Enter the verification link: "));
+    } else {
+        console.log("Already signed in. Proceeding...\n")
+        cookies = await getCookiesFromPage(page, 'https://groq.com/');
     }
+    await page.close();
+    await browser.close();
+
 
 
 
     // Login successful, continue to query LLM
 
-    const page = await browser.newPage();
-    await page.goto('https://groq.com/');
+    
 
-    const cookies = await getCookies(page);;
+    // const cookies = await getCookiesFromPage(page);;
 
 
     // console.log(await listModels(cookies));
@@ -422,10 +484,11 @@ async function cli() {
 
     // createProxyServer(cookies);
     createServer(cookies).listen(PORT, () => {
-        console.log(`Server listening on port ${PORT}`);
+        console.log(`\nServer listening on port ${PORT}... [Ctrl+C to exit]`);
     });;
 
 
+    // manual query, deprecated
     while (false) {
         if (prompt(">> Continue? (Press any key to continue or type exit to exit)") == "exit")
             break;
@@ -453,8 +516,7 @@ async function cli() {
 
     // prompt("Enter anything to continue >> ")
 
-    console.log("Exiting...")
-    await browser.close();
+    
 
     return;
 }
@@ -470,7 +532,11 @@ async function cli() {
 
 // >>>>>>>. Server <<<<<<<
 
-
+/** Create the API server that listens to the port and handles the requests.
+ * 
+* @param {*} Cookies cookie object. It must contains the following properties: `{ stytch_session_jwt, current_org, stytch_session }`
+ * @returns {http.Server} A new instance of the server. Remember to launch the server by calling `server.listen(PORT)`.
+ */
 function createServer(Cookies) {
 
     return http.createServer(async (req, res) => {
@@ -520,8 +586,10 @@ function createServer(Cookies) {
 
 // ===================== Tools =======================
 
-// 启动浏览器
-// 返回一个browser对象
+/** Start the browser and return the browser object
+ * 
+ * @returns {puppeteer.Browser} The browser object
+ */
 async function startBrowser() {
     const { join } = require('path');
 
@@ -529,7 +597,7 @@ async function startBrowser() {
     return browser = await puppeteer.launch({
         headless: 'new',
         cacheDirectory: join(__dirname, '.cache', 'puppeteer'),
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 
         args: [
             "--user-data-dir=./chromeTemp", // Save browser data (cookies) in a temp folder

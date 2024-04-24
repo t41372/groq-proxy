@@ -19,10 +19,11 @@ This program offers free self-hosted API access to groq (which has super fast in
 - Implement API server based on groq api / openai api ~~/ ollama, potentially using http-proxy~~
   - Implemented `/v1/chat/completions` and `/v1/models` api, which are OpenAI Compatible. Just have the server running, set your OpenAI Endpoint to `http://localhost:9876`, and you should be good to go.
   - `/v1/chat/completions` will be streamed back using SSE
+- New way of sign in: user provide verification link only
 
 
 ### To-do
-- Fix broken puppeteer Sign-in feature
+- remove uneccesary code
 - Create no puppeteer mode (just provide the cookies or something similar)
 - dockerize this thing
 
@@ -32,13 +33,16 @@ This program offers free self-hosted API access to groq (which has super fast in
 
 - Clone this repo and open the repo's folder
 - npm install (some puppeteer related settings may need attention)
-- `node index.js` to run this program
+- `node index.js` to run this program.
+  - If some chrome or puppeteer thing broke, run this `npx puppeteer browsers install chrome`
   - You will need to sign into groq.
-  - Follow the instruction. The puppeteer headless browser will ask you for your email. The screenshot of the headless browser will be generated in the folder so you may see what happens in the browser.
+  - Follow the instruction. Use your own browser to go to groq.com and sign in using your email (don't actually sign in there).
   - After entering your email, a verification email will be sent. Copy the link (don't open it)
   - Paste the link into the program
   - The cookies will be extracted and you are good to go
 
+Note:
+- Cookies will expire. You may need to restart the server and re-authenticate to get the new cookies.
 
 
 ## Sample
