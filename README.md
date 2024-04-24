@@ -1,15 +1,15 @@
-## Groq-Proxy: A reverse engineered API for Groq using NodeJS
-Turn groq webui into free OpenAI Compatible API. Super Fast Inference for free
+## Groq-Proxy: A reverse-engineered API for Groq using NodeJS
+Turn [GroqChat webui](https://groq.com) into a free OpenAI Compatible API. Super Fast Inference for free
 
-> :warning: all content in this repository are for experimental purposes
+> :warning: all content in this repository is for experimental purposes
 
 
-This program offers free self-hosted API access to groq (which has super fast inference for open source llm like `LLaMA3 70b`, `Mixtral 8x7b`, and some other models) with OpenAI compatible format, so no code changes are needed.
+This program offers free self-hosted API access to Groq (which has super fast inference for open source LLM like `LLaMA3 70b`, `Mixtral 8x7b`, and some other models) with OpenAI compatible format. Just reset the endpoint.
 
 
 ### Implemented
-- Sign in to groq account
-- Verify Sign in
+- Sign in to the groq account
+- Verify Sign-in
 - Query LLM
 - Start to transition from puppeteer emulation to direct api calls
 - Text Completion with Role/System prompt settings ~~但我这个要怎么设role啊... 还是要抓包吗... (2024.04.21: 是的, 要抓包) (2024.04.22: 报告，抓好了)~~
@@ -19,12 +19,12 @@ This program offers free self-hosted API access to groq (which has super fast in
 - Implement API server based on groq api / openai api ~~/ ollama, potentially using http-proxy~~
   - Implemented `/v1/chat/completions` and `/v1/models` api, which are OpenAI Compatible. Just have the server running, set your OpenAI Endpoint to `http://localhost:9876`, and you should be good to go.
   - `/v1/chat/completions` will be streamed back using SSE
-- New way of sign in: user provide verification link only
+- New way of signing in: The user now only needs to provide the verification link
 
 
 ### To-do
-- remove uneccesary code
-- add check for validity of cookies for the api
+- remove unnecessary code
+- add checks for the validity of cookies for the API
 - Create no puppeteer mode (just provide the cookies or something similar)
 - dockerize this thing
 
@@ -36,11 +36,11 @@ This program offers free self-hosted API access to groq (which has super fast in
 - npm install (some puppeteer related settings may need attention)
 - `node index.js` to run this program.
   - If some chrome or puppeteer thing broke, run this `npx puppeteer browsers install chrome`
-  - You will need to sign into groq.
-  - Follow the instruction. Use your own browser to go to groq.com and sign in using your email (don't actually sign in there).
+  - You will need to sign in to groq.
+  - Follow the instructions. Use your own browser to go to groq.com and sign in using your email (don't actually sign in there).
   - After entering your email, a verification email will be sent. Copy the link (don't open it)
   - Paste the link into the program
-  - The cookies will be extracted and you are good to go
+  - The cookies will be extracted, and you are good to go
 
 Note:
 - Cookies will expire. You may need to restart the server and re-authenticate to get the new cookies.
