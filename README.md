@@ -1,5 +1,5 @@
 ## Groq-Proxy: A reverse-engineered API for Groq using NodeJS
-Turn [GroqChat webui](https://groq.com) into a free OpenAI Compatible API. Super Fast Inference for free
+Turn [GroqChat webui](https://groq.com) into a free OpenAI Compatible API. Note: you need to login to your own Groq account
 
 > :warning: all content in this repository is for experimental purposes
 
