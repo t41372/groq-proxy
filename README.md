@@ -1,6 +1,8 @@
 ## Groq-Proxy: A reverse-engineered API for Groq using NodeJS
 Turn [GroqChat webui](https://groq.com) into a free OpenAI Compatible API. Note: you need to login to your own Groq account
 
+> ❌: This project is pretty pointless now because Groq API has implemented a rather generous rate limit on its API. In addition, I highly suspect that the API you get from this project (chat website reverse engineering) shares the same rate limit as the official API. So...
+
 > :warning: This project is still under active development. Some features (like sign-in) can be unstable.
 
 > :warning: all content in this repository is for experimental purposes
