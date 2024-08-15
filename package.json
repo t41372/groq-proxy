@@ -11,7 +11,7 @@
   "dependencies": {
     "axios": "^1.7.4",
     "prompt-sync": "^4.2.0",
-    "puppeteer": "^22.6.5",
+    "puppeteer": "^22.15.0",
     "turndown": "^7.1.3"
   }
 }
